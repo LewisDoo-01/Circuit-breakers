@@ -1,10 +1,15 @@
 import os
+from collections import OrderedDict
 from dataclasses import dataclass
 import time
 from typing import List, Optional, Tuple
 
 import numpy as np
 from google import genai
+
+# LƯU Ý: kiểm tra lại id model embedding với tài liệu Google hiện hành trước khi
+# chạy thật. Các id đã công bố gồm "gemini-embedding-001" và "text-embedding-004".
+EMBEDDING_MODEL = "gemini-embedding-001"
 
 
 @dataclass
@@ -17,31 +22,61 @@ class CacheEntry:
 
 class SemanticCache:
 
-    def __init__(self, similarity_threshold: float = 0.88, ttl_seconds: float = 3600.0):
+    def __init__(
+        self,
+        similarity_threshold: float = 0.88,
+        ttl_seconds: float = 3600.0,
+        embedding_memo_size: int = 128,
+    ):
         self.threshold = similarity_threshold
         self.ttl_seconds = ttl_seconds
         self.cache_store: List[CacheEntry] = []
 
-        self._genai_client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+        api_key = os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            # KeyError trần không nói cho người dùng biết phải làm gì.
+            raise RuntimeError(
+                "Thiếu biến môi trường GOOGLE_API_KEY. "
+                "Đặt bằng: export GOOGLE_API_KEY=\"your-key-here\""
+            )
+        self._genai_client = genai.Client(api_key=api_key)
+
+        # Bộ nhớ tạm query -> vector (LRU).
+        # lookup() đã embed câu hỏi rồi; nếu store() embed lại đúng câu đó thì
+        # mỗi cache MISS tốn 2 lần gọi API thay vì 1 — gấp đôi chi phí và độ trễ
+        # của chính tầng sinh ra để TIẾT KIỆM chi phí và độ trễ.
+        self._embedding_memo: "OrderedDict[str, np.ndarray]" = OrderedDict()
+        self._embedding_memo_size = embedding_memo_size
 
         # Các chỉ số giám sát (Metrics)
         self.total_requests = 0
         self.hits = 0
         self.misses = 0
+        self.embedding_api_calls = 0  # đếm số lần THỰC SỰ gọi API
 
     def _get_embedding(self, text: str) -> np.ndarray:
-        """Tạo vector embedding chuẩn hóa bằng Google Gemini Embedding API.
+        """Tạo vector embedding chuẩn hóa, có memo LRU để không gọi API 2 lần.
 
-        Model: gemini-embedding-2 (hỗ trợ đa ngôn ngữ).
-        Output đã L2-normalized nên cosine similarity = dot product.
+        Output được L2-normalize nên cosine similarity = dot product.
         """
+        cached = self._embedding_memo.get(text)
+        if cached is not None:
+            self._embedding_memo.move_to_end(text)
+            return cached
+
         result = self._genai_client.models.embed_content(
-            model="gemini-embedding-2",
+            model=EMBEDDING_MODEL,
             contents=text,
         )
+        self.embedding_api_calls += 1
         vec = np.array(result.embeddings[0].values)
         norm = np.linalg.norm(vec)
-        return vec / norm if norm > 0 else vec
+        vec = vec / norm if norm > 0 else vec
+
+        self._embedding_memo[text] = vec
+        if len(self._embedding_memo) > self._embedding_memo_size:
+            self._embedding_memo.popitem(last=False)  # bỏ mục cũ nhất
+        return vec
 
     def _cosine_similarity(self, vec_a: np.ndarray, vec_b: np.ndarray) -> float:
         """Tính Cosine Similarity giữa 2 vector đã chuẩn hóa."""
@@ -78,9 +113,14 @@ class SemanticCache:
         self.misses += 1
         return None, highest_sim
 
-    def store(self, user_query: str, response: str):
-        """Lưu câu trả lời mới vào Cache sau khi gọi LLM."""
-        query_vec = self._get_embedding(user_query)
+    def store(self, user_query: str, response: str, embedding: Optional[np.ndarray] = None):
+        """Lưu câu trả lời mới vào Cache sau khi gọi LLM.
+
+        Truyền sẵn `embedding` nếu caller đã có vector (ví dụ vừa lấy từ
+        lookup()) để khỏi gọi lại API. Nếu không truyền, memo LRU trong
+        _get_embedding() vẫn chặn được lần gọi thừa.
+        """
+        query_vec = embedding if embedding is not None else self._get_embedding(user_query)
         self.cache_store.append(
             CacheEntry(
                 query=user_query,
