@@ -6,8 +6,11 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Optional
 
-logging.basicConfig(level=logging.INFO)
+# Không gọi logging.basicConfig() ở cấp module — xem giải thích trong
+# fallback_ladder.py. NullHandler giữ module im lặng cho tới khi được cấu
+# hình; khối __main__ tự bật basicConfig cho riêng nhu cầu demo của nó.
 logger = logging.getLogger("agent_quality_monitor")
+logger.addHandler(logging.NullHandler())
 
 
 @dataclass
@@ -158,6 +161,7 @@ def _setup_demo_output():
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass  # nỗ lực tối đa; demo vẫn chạy dù không đổi được encoding
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 if __name__ == "__main__":

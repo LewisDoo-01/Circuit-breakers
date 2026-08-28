@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from quanlity_guardrail import ProductionAgentGateway, QualityMetrics
+from quality_guardrail import ProductionAgentGateway, QualityMetrics
 
 QUERY = "Thoi han hoan tien la bao lau?"
 CONTEXT = "Quy dinh cong ty: Thoi han hoan tien toi da la 30 ngay."

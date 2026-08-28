@@ -1,0 +1,29 @@
+# Phiên bản dưới đây là phiên bản đã KIỂM CHỨNG chạy được với repo này (Python
+# 3.13, Windows) — dùng làm mốc sàn (>=), không khoá cứng, để không chặn các
+# bản vá lỗi mới hơn một cách không cần thiết.
+#
+# Không file .py nào trong repo cần third-party package để CHẠY ĐƯỢC ngoại trừ
+# 3 nhóm dưới đây — state_machine.py, jitter.py, fallback_ladder.py,
+# quality_guardrail.py, gateway.py chỉ dùng thư viện chuẩn của Python 3.10+.
+
+# --- Redis cache dùng chung (SharedRedisCache trong cache.py) ---
+# Cần "docker compose up -d" (xem docker-compose.yml) hoặc một Redis đang chạy.
+redis>=8.1
+
+# --- Semantic cache (semantic_cache.py) — cần biến môi trường GOOGLE_API_KEY ---
+numpy>=2.1
+google-genai>=2.16
+
+# --- Evaluation (eval_ragas.py, eval_deepeval.py) — cần GOOGLE_API_KEY ---
+# openai: chỉ dùng làm client OpenAI-compatible trỏ tới endpoint Gemini, xem
+# comment trong eval_ragas.py.
+pandas>=2.2
+openai>=2.52
+ragas>=0.4
+tqdm>=4.67
+# deepeval CHƯA được kiểm chứng trong môi trường phát triển repo này (không cài
+# sẵn) — nếu cài lỗi, tham khảo tài liệu deepeval cho phiên bản Python đang dùng.
+deepeval>=4.2
+
+# --- Chạy test (tests/) ---
+pytest>=9.1

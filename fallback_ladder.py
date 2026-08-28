@@ -5,8 +5,13 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-logging.basicConfig(level=logging.INFO)
+# Không gọi logging.basicConfig() ở cấp module: đó là quyền của ỨNG DỤNG dùng
+# module này, không phải của thư viện. Một import đơn thuần không nên âm thầm
+# chiếm luôn root logger của ai đó (ghi log 2 lần nếu họ đã tự cấu hình, hoặc
+# đè cấu hình của họ). NullHandler giữ module im lặng cho tới khi được cấu
+# hình; khối __main__ tự bật basicConfig cho riêng nhu cầu demo của nó.
 logger = logging.getLogger("fallback_ladder")
+logger.addHandler(logging.NullHandler())
 
 # Schema đầu ra mong muốn — nguồn sự thật DUY NHẤT về tên trường và kiểu.
 EXPECTED_SCHEMA = {"intent": str, "confidence": float, "reply": str}
@@ -259,6 +264,7 @@ def _setup_demo_output():
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass  # nỗ lực tối đa; demo vẫn chạy dù không đổi được encoding
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 if __name__ == "__main__":

@@ -46,7 +46,7 @@ from typing import Any, Callable, Optional, Protocol, Tuple
 
 from cache import ResponseCache, false_hit_reason
 from jitter import RETRYABLE_EXCEPTIONS, retry_with_exponential_backoff_and_jitter
-from quanlity_guardrail import QualityMetrics
+from quality_guardrail import QualityMetrics
 from state_machine import CircuitBreaker, CircuitOpenError
 
 # Không print() trong code thư viện — xem lý do ở state_machine.py (P0-1).
